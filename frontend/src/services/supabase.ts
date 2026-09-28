@@ -27,6 +27,51 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
   }
 });
 
+export const signInWithEmail = async (email: string, password: string) => {
+  if (!isSupabaseConfigured()) {
+    throw new Error(
+      'Supabase credentials are not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.'
+    );
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim(),
+    password
+  });
+
+  if (error) {
+    throw error;
+  }
+  return data;
+};
+
+export const signUpWithEmail = async (email: string, password: string, name?: string) => {
+  if (!isSupabaseConfigured()) {
+    throw new Error(
+      'Supabase credentials are not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.'
+    );
+  }
+
+  const trimmedEmail = email.trim();
+  const displayName = name?.trim() || trimmedEmail.split('@')[0];
+
+  const { data, error } = await supabase.auth.signUp({
+    email: trimmedEmail,
+    password,
+    options: {
+      data: {
+        name: displayName,
+        full_name: displayName
+      }
+    }
+  });
+
+  if (error) {
+    throw error;
+  }
+  return data;
+};
+
 export const signInWithGoogle = async () => {
   if (!isSupabaseConfigured()) {
     throw new Error(

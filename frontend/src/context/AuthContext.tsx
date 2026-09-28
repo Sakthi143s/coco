@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, isSupabaseConfigured, signInWithGoogle as supabaseSignIn, signOut as supabaseSignOut } from '../services/supabase';
+import {
+  supabase,
+  isSupabaseConfigured,
+  signInWithGoogle as supabaseSignIn,
+  signInWithEmail as supabaseSignInWithEmail,
+  signUpWithEmail as supabaseSignUpWithEmail,
+  signOut as supabaseSignOut
+} from '../services/supabase';
 import { API_BASE } from '../services/api';
 
 export interface AuthUser {
@@ -23,6 +30,8 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name?: string) => Promise<any>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
   disconnectStrava: () => Promise<void>;
@@ -119,6 +128,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signInWithEmail = async (email: string, password: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const data = await supabaseSignInWithEmail(email, password);
+      if (data.session) {
+        const accessToken = data.session.access_token;
+        setToken(accessToken);
+        localStorage.setItem('cycleclub_auth_token', accessToken);
+        await fetchUserProfile(accessToken);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Email sign-in failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signUpWithEmail = async (email: string, password: string, name?: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const data = await supabaseSignUpWithEmail(email, password, name);
+      if (data.session) {
+        const accessToken = data.session.access_token;
+        setToken(accessToken);
+        localStorage.setItem('cycleclub_auth_token', accessToken);
+        await fetchUserProfile(accessToken);
+      }
+      return data;
+    } catch (err: any) {
+      setError(err.message || 'Sign up failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSignOut = async () => {
     setError(null);
     setLoading(true);
@@ -166,6 +214,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         error,
         signInWithGoogle,
+        signInWithEmail,
+        signUpWithEmail,
         signOut: handleSignOut,
         refreshUser,
         disconnectStrava,
