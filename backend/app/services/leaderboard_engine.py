@@ -31,47 +31,85 @@ def format_seconds(seconds: int) -> str:
         return f"{hours}h {minutes}m"
     return f"{minutes}m"
 
+def get_club_timezone() -> ZoneInfo:
+    tz_name = settings.CLUB_TIMEZONE or "Asia/Kolkata"
+    try:
+        return ZoneInfo(tz_name)
+    except Exception as e:
+        logger.warning(f"Invalid CLUB_TIMEZONE '{tz_name}', falling back to Asia/Kolkata: {e}")
+        try:
+            return ZoneInfo("Asia/Kolkata")
+        except Exception:
+            return timezone.utc
+
+def get_timeframe_boundary(timeframe: str, club_tz: ZoneInfo) -> Optional[datetime]:
+    """
+    Computes timezone-aware start datetime boundary in club_tz for the given timeframe.
+    Returns None for 'all_time' so no date filter is applied.
+    Supported API values: today, week, month, year, all_time
+    """
+    tf = (timeframe or "today").lower().strip()
+    now_club = datetime.now(club_tz)
+
+    if tf == "today":
+        return now_club.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif tf == "week":
+        # Monday is start of the current week (ISO weekday Monday=0)
+        return (now_club - timedelta(days=now_club.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+    elif tf == "month":
+        # 1st day of the current month
+        return now_club.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    elif tf == "year":
+        # 1st day of the current year (Jan 1)
+        return now_club.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    elif tf == "all_time":
+        return None
+    else:
+        # Default fallback for unrecognized timeframes is all_time (no date filter)
+        return None
+
 class LeaderboardEngine:
     @staticmethod
     def get_leaderboard(
         db: Session, timeframe: str = "today", category: str = "distance"
     ) -> LeaderboardResponse:
         # 1. Determine Club Local Timezone based on CLUB_TIMEZONE configuration
-        tz_name = settings.CLUB_TIMEZONE or "Asia/Kolkata"
-        try:
-            club_tz = ZoneInfo(tz_name)
-        except Exception as e:
-            logger.warning(f"Invalid CLUB_TIMEZONE '{tz_name}', falling back to Asia/Kolkata: {e}")
-            try:
-                club_tz = ZoneInfo("Asia/Kolkata")
-            except Exception:
-                club_tz = timezone.utc
+        club_tz = get_club_timezone()
 
-        now_club = datetime.now(club_tz)
+        # Normalize timeframe key: today, week, month, year, all_time
+        tf = (timeframe or "today").lower().strip()
+        if tf not in ["today", "week", "month", "year", "all_time"]:
+            tf = "all_time"
 
         # 2. Compute period start boundary in Club Timezone
-        tf = timeframe.lower().strip()
-        if tf == "today":
-            start_local = now_club.replace(hour=0, minute=0, second=0, microsecond=0)
-        elif tf == "week":
-            # Monday is start of the current week (ISO weekday Monday=0)
-            start_local = (now_club - timedelta(days=now_club.weekday())).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
-        elif tf == "month":
-            # 1st day of the current month
-            start_local = now_club.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        else:  # all_time or unrecognized
-            tf = "all_time"
-            start_local = datetime(2020, 1, 1, 0, 0, 0, tzinfo=club_tz)
+        start_local = get_timeframe_boundary(tf, club_tz)
 
-        # Convert local start boundary to UTC for database comparison
-        start_utc = start_local.astimezone(timezone.utc)
-        start_utc_naive = start_utc.replace(tzinfo=None)
+        # Build activity join conditions
+        activity_conditions = [
+            User.id == Activity.user_id,
+            Activity.activity_type.in_(ALLOWED_ACTIVITY_TYPES)
+        ]
+
+        if start_local is not None:
+            # Convert local start boundary to UTC for database comparison
+            start_utc = start_local.astimezone(timezone.utc)
+            start_utc_naive = start_utc.replace(tzinfo=None)
+            activity_conditions.append(
+                or_(
+                    Activity.start_date >= start_utc,
+                    Activity.start_date >= start_utc_naive
+                )
+            )
+            log_boundary = f"start_local={start_local.isoformat()}, start_utc={start_utc.isoformat()}"
+        else:
+            # all_time applies NO date filter
+            log_boundary = "no date filter (all_time)"
 
         logger.info(
             f"Computing leaderboard: timeframe={tf}, category={category}, "
-            f"club_tz={club_tz}, start_local={start_local.isoformat()}, start_utc={start_utc.isoformat()}"
+            f"club_tz={club_tz}, {log_boundary}"
         )
 
         try:
@@ -90,14 +128,7 @@ class LeaderboardEngine:
                 func.coalesce(func.avg(Activity.average_speed), 0.0).label("avg_speed")
             ).outerjoin(
                 Activity,
-                and_(
-                    User.id == Activity.user_id,
-                    or_(
-                        Activity.start_date >= start_utc,
-                        Activity.start_date >= start_utc_naive
-                    ),
-                    Activity.activity_type.in_(ALLOWED_ACTIVITY_TYPES)
-                )
+                and_(*activity_conditions)
             ).filter(
                 User.status == "active",
                 User.leaderboard_opt_in.isnot(False)
@@ -106,10 +137,10 @@ class LeaderboardEngine:
             )
 
             # 4. Sorting logic with tie-breaking
-            # Prioritize riders with connected Strava and active rides
+            # Prioritize riders with connected Strava accounts
             strava_connected_priority = desc(User.strava_athlete_id.isnot(None))
 
-            cat = category.lower().strip()
+            cat = (category or "distance").lower().strip()
             if cat == "distance":
                 query = query.order_by(
                     desc("total_distance"),
@@ -156,7 +187,7 @@ class LeaderboardEngine:
                 time_sec = int(row.total_moving_time or 0)
                 ride_count = int(row.ride_count or 0)
 
-                # Calculate speed only if rides were logged in timeframe
+                # Weighted/calculated average speed strictly for rides in this timeframe
                 if ride_count > 0 and time_sec > 0:
                     avg_speed_kmh = round(float(row.avg_speed or (dist_km / (time_sec / 3600.0))), 1)
                 else:
@@ -179,7 +210,7 @@ class LeaderboardEngine:
                     )
                 )
 
-            logger.info(f"Leaderboard computed successfully: {len(entries)} riders ranked for {tf}/{cat}")
+            logger.info(f"Leaderboard computed: {len(entries)} riders ranked for {tf}/{cat}")
 
             return LeaderboardResponse(
                 timeframe=tf,

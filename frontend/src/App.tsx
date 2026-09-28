@@ -209,7 +209,15 @@ function MainApp() {
             leaderboard={todayLeaderboard}
             recentActivities={activities}
             onRiderSelect={handleRiderSelect}
-            onFilterChange={(tf) => setSelectedTimeframe(tf)}
+            onFilterChange={async (tf) => {
+              setSelectedTimeframe(tf);
+              try {
+                const lb = await api.getLeaderboard(tf, 'distance');
+                setTodayLeaderboard(lb);
+              } catch (e) {
+                console.error('Failed to fetch leaderboard for timeframe:', tf, e);
+              }
+            }}
             selectedTimeframe={selectedTimeframe}
             onConnectStrava={handleConnectStrava}
           />

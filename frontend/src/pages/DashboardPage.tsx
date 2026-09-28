@@ -53,16 +53,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
           {[
             { id: 'today', label: 'Today' },
             { id: 'week', label: 'This Week' },
             { id: 'month', label: 'This Month' },
+            { id: 'year', label: 'This Year' },
+            { id: 'all_time', label: 'All Time' },
           ].map((tf) => (
             <button
               key={tf.id}
               onClick={() => onFilterChange(tf.id)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 selectedTimeframe === tf.id
                   ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-white hover:bg-slate-900'

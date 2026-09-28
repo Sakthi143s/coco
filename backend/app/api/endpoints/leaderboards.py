@@ -8,7 +8,7 @@ router = APIRouter(prefix="/leaderboards", tags=["Leaderboards"])
 
 @router.get("", response_model=LeaderboardResponse)
 def get_leaderboard(
-    timeframe: str = Query("today", description="today, week, month, all_time"),
+    timeframe: str = Query("today", description="today, week, month, year, all_time"),
     category: str = Query("distance", description="distance, elevation, longest_ride, most_active"),
     db: Session = Depends(get_db)
 ):

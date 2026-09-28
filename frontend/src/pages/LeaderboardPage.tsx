@@ -37,11 +37,27 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onRiderSelect 
   ];
 
   const timeframes = [
-    { id: 'today', label: 'Daily' },
-    { id: 'week', label: 'Weekly' },
-    { id: 'month', label: 'Monthly' },
+    { id: 'today', label: 'Today' },
+    { id: 'week', label: 'This Week' },
+    { id: 'month', label: 'This Month' },
+    { id: 'year', label: 'This Year' },
     { id: 'all_time', label: 'All Time' },
   ];
+
+  const timeframeLabels: Record<string, string> = {
+    today: 'Today',
+    week: 'This Week',
+    month: 'This Month',
+    year: 'This Year',
+    all_time: 'All Time'
+  };
+
+  const categoryLabels: Record<string, string> = {
+    distance: 'Distance',
+    elevation: 'Elevation',
+    longest_ride: 'Longest Ride',
+    most_active: 'Most Active'
+  };
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -87,8 +103,8 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onRiderSelect 
               <Trophy className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-extrabold text-xl text-white capitalize">
-                {timeframe} {category.replace('_', ' ')} Leaderboard
+              <h3 className="font-extrabold text-xl text-white">
+                {timeframeLabels[timeframe] || 'Club'} {categoryLabels[category] || 'Distance'} Leaderboard
               </h3>
               <p className="text-xs text-slate-400">
                 Transparent ranking algorithm calculated directly from verified database records
@@ -96,12 +112,12 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onRiderSelect 
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
             {timeframes.map((tf) => (
               <button
                 key={tf.id}
                 onClick={() => setTimeframe(tf.id)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   timeframe === tf.id
                     ? 'bg-orange-500 text-white shadow-md'
                     : 'text-slate-400 hover:text-white'

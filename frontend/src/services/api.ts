@@ -40,8 +40,8 @@ export const api = {
   },
 
   // Dashboard Summary
-  getDashboardSummary: async (): Promise<{ overview: DashboardOverview; leaderboard_today: LeaderboardResponse }> => {
-    const res = await fetch(`${API_BASE}/dashboard/summary`, {
+  getDashboardSummary: async (timeframe: string = 'today'): Promise<{ overview: DashboardOverview; leaderboard_today: LeaderboardResponse }> => {
+    const res = await fetch(`${API_BASE}/dashboard/summary?timeframe=${timeframe}`, {
       headers: getAuthHeaders()
     });
     if (!res.ok) throw new Error('Failed to fetch dashboard summary');
