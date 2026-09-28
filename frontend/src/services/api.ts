@@ -7,7 +7,16 @@ import type {
   Challenge
 } from '../types';
 
-export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+// Production API base URL configured via import.meta.env.VITE_API_URL
+// Defaults to the production Render backend (https://coco-lz7z.onrender.com)
+const rawApiUrl = (
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  'https://coco-lz7z.onrender.com'
+).replace(/\/+$/, '');
+
+// Ensure /api prefix is present so requests route directly to /api/* on Render
+export const API_BASE = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
 
 const getAuthHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('cycleclub_auth_token');

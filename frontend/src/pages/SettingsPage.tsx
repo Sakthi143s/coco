@@ -1,5 +1,6 @@
 import React from 'react';
 import { Settings, ShieldCheck, Database, Zap, CheckCircle2 } from 'lucide-react';
+import { API_BASE } from '../services/api';
 
 export const SettingsPage: React.FC = () => {
   return (
@@ -58,7 +59,7 @@ export const SettingsPage: React.FC = () => {
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
             <span className="font-semibold text-slate-300">OAuth Callback URI</span>
-            <code className="text-orange-400 font-mono">http://localhost:8000/api/auth/strava/callback</code>
+            <code className="text-orange-400 font-mono">{API_BASE}/auth/strava/callback</code>
           </div>
 
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
