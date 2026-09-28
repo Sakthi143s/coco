@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "super-secret-key-change-in-production-32-chars!"
     PORT: int = 8000
     FRONTEND_URL: str = "https://coco-begb.vercel.app"
-    CLUB_TIMEZONE: str = "America/Los_Angeles"  # Timezone for daily/weekly/monthly leaderboard calculation
+    CLUB_TIMEZONE: str = "Asia/Kolkata"  # Timezone for daily/weekly/monthly leaderboard calculation
 
     # Database
     DATABASE_URL: str = "sqlite:///./cycleclub.db"

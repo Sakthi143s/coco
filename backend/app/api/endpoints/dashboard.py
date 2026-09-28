@@ -1,20 +1,35 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.models import User, Activity
 from app.schemas.schemas import DashboardOverview
-from app.services.leaderboard_engine import LeaderboardEngine, format_seconds
+from app.services.leaderboard_engine import LeaderboardEngine, format_seconds, ALLOWED_ACTIVITY_TYPES
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @router.get("/summary")
 def get_dashboard_summary(db: Session = Depends(get_db)):
-    now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    tz_name = settings.CLUB_TIMEZONE or "Asia/Kolkata"
+    try:
+        club_tz = ZoneInfo(tz_name)
+    except Exception:
+        try:
+            club_tz = ZoneInfo("Asia/Kolkata")
+        except Exception:
+            club_tz = timezone.utc
+
+    now_club = datetime.now(club_tz)
+    today_start = now_club.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    week_start = (now_club - timedelta(days=now_club.weekday())).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    month_start = now_club.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+    today_naive = today_start.replace(tzinfo=None)
+    week_naive = week_start.replace(tzinfo=None)
+    month_naive = month_start.replace(tzinfo=None)
 
     # 1. Total Active Riders
     active_riders_count = db.query(func.count(User.id)).filter(User.status == "active").scalar() or 0
@@ -25,15 +40,24 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         func.coalesce(func.sum(Activity.distance), 0.0).label("total_dist"),
         func.coalesce(func.sum(Activity.elevation_gain), 0.0).label("total_elev"),
         func.coalesce(func.sum(Activity.moving_time), 0).label("total_time")
-    ).filter(Activity.start_date >= today_start).first()
+    ).filter(
+        or_(Activity.start_date >= today_start, Activity.start_date >= today_naive),
+        Activity.activity_type.in_(ALLOWED_ACTIVITY_TYPES)
+    ).first()
 
     # 3. Weekly Distance
     weekly_dist = db.query(func.coalesce(func.sum(Activity.distance), 0.0))\
-        .filter(Activity.start_date >= week_start).scalar() or 0.0
+        .filter(
+            or_(Activity.start_date >= week_start, Activity.start_date >= week_naive),
+            Activity.activity_type.in_(ALLOWED_ACTIVITY_TYPES)
+        ).scalar() or 0.0
 
     # 4. Monthly Distance
     monthly_dist = db.query(func.coalesce(func.sum(Activity.distance), 0.0))\
-        .filter(Activity.start_date >= month_start).scalar() or 0.0
+        .filter(
+            or_(Activity.start_date >= month_start, Activity.start_date >= month_naive),
+            Activity.activity_type.in_(ALLOWED_ACTIVITY_TYPES)
+        ).scalar() or 0.0
 
     # 5. Today's Leaderboard
     leaderboard_today = LeaderboardEngine.get_leaderboard(db, timeframe="today", category="distance")
